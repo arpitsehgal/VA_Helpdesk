@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Task Chat</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container mt-5">
+        <h2 class="text-center mb-4">Chat for Task: {{ task.task_name }}</h2>
+        
+        
+        
+        <!-- Task Details Section -->
+        <div class="card">
+            <div class="card-header">
+                <h4 class="mb-0">Task Details</h4><br>
+                <div class="text mt-4">
+                    {% if session['user_role'] == 'admin' %}
+                        <a href="{{ url_for('main.admin_dashboard') }}" class="btn btn-secondary">Go Back to Dashboard</a>
+                    {% elif session['user_role'] == 'analyst' %}
+                        <a href="{{ url_for('main.analyst_dashboard') }}" class="btn btn-secondary">Go Back to Dashboard</a>
+                    {% elif session['user_role'] == 'VA' %}
+                        <a href="{{ url_for('main.visual_artist_dashboard') }}" class="btn btn-secondary">Go Back to Dashboard</a>
+                    {% endif %}
+                </div><br>
+                <button class="btn btn-primary btn-sm" onclick="editTask({{ task.id }})">Edit</button>
+            </div>
+            
+            <div class="card-body">
+                <p><strong>Task Name:</strong> {{ task.task_name }}</p>
+                <p><strong>Description:</strong> {{ task.description }}</p>
+                <p><strong>Request Type:</strong> {{ task.request_type }}</p>
+                <p><strong>Needed By:</strong> {{ task.required_by }}</p>
+                <p><strong>Files:</strong></p>
+                <ul>
+                    {% if task.file_paths %}
+                        {% for file in task.file_paths.split(',') %}
+                            <li>
+                                <a href="{{ url_for('main.uploaded_file', filename=file.split('/')[-1]) }}" target="_blank">
+                                    {{ file.split('/')[-1] }}
+                                </a>
+                            </li>
+                        {% endfor %}
+                    {% else %}
+                        <li>No files uploaded</li>
+                    {% endif %}
+                </ul>
+                
+            </div>
+        </div>
+
+        <div class="mb-3">
+            <label for="status-select" class="form-label"><strong>Task Status:</strong></label>
+            <select class="form-select" id="status-select" onchange="updateTaskStatus({{ task.id }})">
+                <option value="with VA" {% if task.status == 'with VA' %}selected{% endif %}>With VA</option>
+                <option value="In progress" {% if task.status == 'In progress' %}selected{% endif %}>In Progress</option>
+                <option value="with Analyst" {% if task.status == 'with Analyst' %}selected{% endif %}>With Analyst</option>
+                <option value="Review needed" {% if task.status == 'Review needed' %}selected{% endif %}>Review Needed</option>
+                <option value="Completed" {% if task.status == 'Completed' %}selected{% endif %}>Completed</option>
+            </select>
+        </div>
+        
+        <!-- Chat Section -->
+        <div class="card mt-4">
+            <div class="card-body">
+                <div class="chat-box mb-3">
+                    {% for message in messages %}
+                        <div class="mb-2">
+                            <strong>{{ message.sender.name }}</strong> ({{ message.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}):
+                            <p>{{ message.content }}</p>
+                        </div>
+                    {% endfor %}
+                </div>
+                <form method="POST">
+                    <div class="mb-3">
+                        <textarea class="form-control" name="content" rows="3" placeholder="Type your message..." required></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Send</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Edit Task Modal -->
+         
+        <div class="modal fade" id="editTaskModal" tabindex="-1" aria-labelledby="editTaskModalLabel" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="editTaskModalLabel">Edit Task</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <form id="editTaskForm">
+                            <input type="hidden" id="edit_task_id">
+                            <div class="mb-3">
+                                <label for="edit_task_name" class="form-label">Task Name</label>
+                                <input type="text" class="form-control" id="edit_task_name" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="edit_description" class="form-label">Description</label>
+                                <textarea class="form-control" id="edit_description" rows="3" required></textarea>
+                            </div>
+                            <div class="mb-3">
+                                <label for="edit_required_by" class="form-label">Required By</label>
+                                <input type="date" class="form-control" id="edit_required_by" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="edit_request_type" class="form-label">Request Type</label>
+                                <select class="form-select" id="edit_request_type" required>
+                                    <option value="Formatting">Formatting</option>
+                                    <option value="Editing">Editing</option>
+                                    <option value="Video">Video</option>
+                                    <option value="Flyer">Flyer</option>
+                                    <option value="MI">MI</option>
+                                    <option value="Banner">Banner</option>
+                                </select>
+                            </div>
+                            <div id="edit-file-upload-container" class="mb-3">
+                                <label class="form-label">Upload New Files</label>
+                                <div class="input-group mb-2">
+                                    <input type="file" class="form-control" name="files">
+                                    <button type="button" class="btn btn-danger btn-sm" onclick="removeFileInput(this)">Remove</button>
+                                </div>
+                            </div>
+                            <button type="button" class="btn btn-secondary btn-sm mb-3" onclick="addFileInput()">+ Add More Files</button>
+                            <button type="button" class="btn btn-primary w-100" onclick="submitEditTask()">Save Changes</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Update Task Status
+        function updateTaskStatus(taskId) {
+            const statusSelect = document.getElementById('status-select');
+            const newStatus = statusSelect.value;
+
+            fetch(`/task/${taskId}/status`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ status: newStatus }),
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert(`Task status updated to: ${data.status}`);
+                } else {
+                    alert(data.error || 'Failed to update task status.');
+                }
+            })
+            .catch(error => console.error('Error updating task status:', error));
+        }
+
+        // Edit Task Logic
+        function editTask(taskId) {
+            fetch(`/task/${taskId}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        alert(data.error);
+                        return;
+                    }
+
+                    // Populate modal with task data
+                    document.getElementById('edit_task_id').value = taskId;
+                    document.getElementById('edit_task_name').value = data.task_name;
+                    document.getElementById('edit_description').value = data.description;
+                    document.getElementById('edit_required_by').value = data.required_by;
+                    document.getElementById('edit_request_type').value = data.request_type;
+
+                    // Show the modal
+                    new bootstrap.Modal(document.getElementById('editTaskModal')).show();
+                })
+                .catch(error => console.error('Error fetching task data:', error));
+        }
+
+        // Submit edited task
+        function submitEditTask() {
+            const taskId = document.getElementById('edit_task_id').value;
+
+            const formData = new FormData();
+            formData.append('task_name', document.getElementById('edit_task_name').value);
+            formData.append('description', document.getElementById('edit_description').value);
+            formData.append('required_by', document.getElementById('edit_required_by').value);
+            formData.append('request_type', document.getElementById('edit_request_type').value);
+
+            // Add file inputs
+            const fileInputs = document.querySelectorAll('#edit-file-upload-container input[type="file"]');
+            fileInputs.forEach(input => {
+                if (input.files) {
+                    for (const file of input.files) {
+                        formData.append('files', file);
+                    }
+                }
+            });
+
+            fetch(`/task/${taskId}/edit`, {
+                method: 'PUT',
+                body: formData,
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('Task updated successfully.');
+                    location.reload();
+                } else {
+                    alert(data.error || 'Failed to update task.');
+                }
+            })
+            .catch(error => console.error('Error updating task:', error));
+        }
+
+        // Add new file input dynamically for edit task
+        function addFileInput() {
+            const container = document.getElementById('edit-file-upload-container');
+            const inputGroup = document.createElement('div');
+            inputGroup.className = 'input-group mb-2';
+            inputGroup.innerHTML = `
+                <input type="file" class="form-control" name="files">
+                <button type="button" class="btn btn-danger btn-sm" onclick="removeFileInput(this)">Remove</button>
+            `;
+            container.appendChild(inputGroup);
+        }
+
+        // Remove file input dynamically
+        function removeFileInput(button) {
+            button.parentElement.remove();
+        }
+    </script>
+</body>
+</html>
